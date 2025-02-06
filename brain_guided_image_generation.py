@@ -31,34 +31,25 @@ import time
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--rois_str', help='rois_str', type=str, default='OFA')
+parser.add_argument('--detach_k', help='detach_k', type=int, default=0)
+parser.add_argument('--subj', help='subj', type=int, default=1)
 args = parser.parse_args()
 rois_str = args.rois_str
 rois_list = rois_str.split('_')
-
-print(rois_str, rois_list, flush=True)
-#################################
-# model = brain_encoder_wrapper()
-# model_name = 'default'
+detach_k = bool(args.detach_k)
+subj = args.subj
+print(rois_str, rois_list, f'detach_k={detach_k}', f'subj={subj}', flush=True)
 ##################################
-subj=1
-enc_output_layer=[1, 3, 5, 7]
-
-readout_res= 'rois_all'
-runs= np.arange(1,6) 
-
-# readout_res= 'voxels'
-# runs= np.arange(1, 3)
-
-model = brain_encoder_wrapper(subj=subj, readout_res=readout_res, enc_output_layer=enc_output_layer, runs=runs)
-
+enc_output_layer = [1, 3, 5, 7]
+runs = np.arange(1, 6)
+model = brain_encoder_wrapper(subj=subj, enc_output_layer=enc_output_layer, runs=runs, detach_k=detach_k)
 model_name = 'model'
-model_name += 'Voxels' if readout_res == 'voxels' else ''
+model_name += 'Subj' + str(subj)
 model_name += 'Layer' + ''.join([str(cur) for cur in enc_output_layer])
 model_name += 'Runs' + ''.join([str(cur) for cur in runs])
-##################################
+model_name += 'detachk' if detach_k else ''
 print(model_name, flush=True)
-
-
+##################################
 if model.model is not None:
     cur_model = model.model
     cur_model.lr_backbone = 1 # otherwise no gradient in brain_encoder line 68
@@ -69,8 +60,7 @@ else:
         cur_model.lr_backbone = 1
         for name, param in cur_model.named_parameters():
             param.requires_grad = False
-
-
+##################################
 repo_id = "stabilityai/stable-diffusion-2-1-base"
 pipe = mypipelineSAG.from_pretrained(repo_id, torch_dtype=torch.float16, revision="fp16")
 pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
@@ -101,7 +91,7 @@ pipe.brain_tweak = loss_function
 
 import time
 time_st = time.time()
-for seed in range(500):
+for seed in range(200):
     
     gc.collect()
     torch.cuda.empty_cache()
@@ -110,8 +100,8 @@ for seed in range(500):
     g = torch.Generator(device="cuda").manual_seed(int(seed))
     image = pipe("", sag_scale=0.75, guidance_scale=0.0, num_inference_steps=50, generator=g, clip_guidance_scale=130.0)
     
-    image.images[0].save(f'{fld}/{model_name}/{rois_str}_detachk_seed{seed}.png', format="PNG", compress_level=6)
-    
+    image.images[0].save(f'{fld}/{model_name}/{rois_str}_seed{seed}.png', format="PNG", compress_level=6)
+
     # fig, ax = plt.subplots(1, 1, figsize=(3, 3))
     # ax.imshow(image.images[0])
-print(time.time() - time_st) #240/3 #29.9-30.1
+print(time.time() - time_st)

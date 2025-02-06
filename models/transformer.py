@@ -20,9 +20,9 @@ class Transformer(nn.Module):
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_enc=False, return_intermediate_dec=False, enc_output_layer=-1):
+                 return_intermediate_enc=False, return_intermediate_dec=False, enc_output_layer=-1, detach_k=False):
         super().__init__()
-        
+
         self.num_encoder_layers = num_encoder_layers
 
         if self.num_encoder_layers > 0:
@@ -38,7 +38,7 @@ class Transformer(nn.Module):
         
         if self.num_decoder_layers > 0:
             decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                        dropout, activation, normalize_before)
+                                        dropout, activation, normalize_before, detach_k=detach_k)
             decoder_norm = nn.LayerNorm(d_model)
             self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
                                               return_intermediate=return_intermediate_dec)
@@ -287,7 +287,7 @@ class TransformerEncoderLayer(nn.Module):
 class TransformerDecoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", normalize_before=False):
+                 activation="relu", normalize_before=False, detach_k=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -305,6 +305,7 @@ class TransformerDecoderLayer(nn.Module):
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
+        self.detach_k = detach_k
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos
@@ -324,8 +325,11 @@ class TransformerDecoderLayer(nn.Module):
         
         # cross attention
         tgt = self.norm1(tgt)
+        key = self.with_pos_embed(memory, pos)
+        if self.detach_k:
+            key = key.detach()
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
+                                   key=key,
                                    value=memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
@@ -389,8 +393,11 @@ class TransformerDecoderLayer(nn.Module):
         # tgt2 = self.norm2(tgt)
         
         # cross attention
+        key = self.with_pos_embed(memory, pos)
+        if self.detach_k:
+            key = key.detach()
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
+                                   key=key,
                                    value=memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
@@ -430,6 +437,7 @@ def build_transformer(args):
         return_intermediate_enc=True,
         return_intermediate_dec=True,
         enc_output_layer = args.enc_output_layer,
+        detach_k = args.detach_k,
     )
 
 

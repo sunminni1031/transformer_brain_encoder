@@ -12,12 +12,13 @@ from scipy.special import softmax
 class brain_encoder_wrapper():
     def __init__(self, subj=1, arch='dinov2_q_transformer', feature_name='dinov2_q_last',\
                  readout_res= 'rois_all', enc_output_layer=[1], runs=[1], results_dir=None, \
-                  device=None, output_type='predictions'):
+                  device=None, output_type='predictions', detach_k=False):
         
         self.readout_res = readout_res #'rois_all'
         self.enc_output_layer = enc_output_layer  # 1
         self.arch = arch # 'dinov2_q_transformer'
         self.subj = format(subj, '02')
+        self.detach_k = detach_k
 
         if results_dir is None:
             self.results_dir = '/engram/nklab/hossein/recurrent_models/transformer_brain_encoder/results/'
@@ -127,6 +128,7 @@ class brain_encoder_wrapper():
 
         pretrained_dict = checkpoint['model']
         args = checkpoint['args']
+        args.detach_k = self.detach_k
         model = brain_encoder(args)
         model.load_state_dict(pretrained_dict)
         model.to(device)
