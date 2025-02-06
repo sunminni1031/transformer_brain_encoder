@@ -1,34 +1,19 @@
 import os
+import warnings
+import gc
+import time
+import argparse
+import numpy as np
+import torch
+from PIL import Image
+import matplotlib.pyplot as plt
+import torchvision.transforms as transforms
+from brain_encoder_wrapper import brain_encoder_wrapper
+from brain_guide_pipeline import mypipelineSAG
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
+warnings.filterwarnings('ignore')
 os.chdir('/engram/nklab/hossein/recurrent_models/transformer_brain_encoder/')
 
-import warnings
-warnings.filterwarnings('ignore')
-
-import matplotlib.pyplot as plt
-
-import numpy as np
-import torch
-# import torchvision.transforms as T
-from PIL import Image
-import torchvision.transforms as transforms
-from datasets.nsd_utils import roi_maps, plot_on_brain
-from datasets.nsd import fetch_dataloaders
-
-from brain_encoder_wrapper import brain_encoder_wrapper
-
-import sys
-import os
-import torch
-import numpy as np
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
-from brain_guide_pipeline import mypipelineSAG
-import pickle
-import gc
-import nibabel as nib
-import os
-import time
-
-import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--rois_str', help='rois_str', type=str, default='OFA')
 parser.add_argument('--detach_k', help='detach_k', type=int, default=0)
@@ -61,12 +46,6 @@ else:
         for name, param in cur_model.named_parameters():
             param.requires_grad = False
 ##################################
-repo_id = "stabilityai/stable-diffusion-2-1-base"
-pipe = mypipelineSAG.from_pretrained(repo_id, torch_dtype=torch.float16, revision="fp16")
-pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
-pipe2 = pipe.to("cuda")
-
-
 lh_challenge_rois = []
 rh_challenge_rois = []
 for roi in rois_list:
@@ -87,21 +66,54 @@ def loss_function(image_input):
 fld = '/engram/nklab/ms5724/transformer_brain_encoder/images'
 os.makedirs(fld, exist_ok=True)
 os.makedirs(f'{fld}/{model_name}', exist_ok=True)
+
+##################################
+repo_id = "stabilityai/stable-diffusion-2-1-base"
+pipe = mypipelineSAG.from_pretrained(repo_id, torch_dtype=torch.float16, revision="fp16")
+pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+pipe2 = pipe.to("cuda")
 pipe.brain_tweak = loss_function
 
-import time
 time_st = time.time()
-for seed in range(200):
-    
+seed_list = np.arange(200)
+for seed in seed_list:
     gc.collect()
     torch.cuda.empty_cache()
     gc.collect()
-    
     g = torch.Generator(device="cuda").manual_seed(int(seed))
     image = pipe("", sag_scale=0.75, guidance_scale=0.0, num_inference_steps=50, generator=g, clip_guidance_scale=130.0)
-    
     image.images[0].save(f'{fld}/{model_name}/{rois_str}_seed{seed}.png', format="PNG", compress_level=6)
-
-    # fig, ax = plt.subplots(1, 1, figsize=(3, 3))
-    # ax.imshow(image.images[0])
 print(time.time() - time_st)
+
+###########################################################
+preprocess = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225])])
+mean_act_arr = []
+for seed in seed_list:
+    image_path = f'{fld}/{model_name}/{rois_str}_seed{seed}.png'
+    image = Image.open(image_path)
+    img = preprocess(image)
+    patch_size = 14
+    size_im = (img.shape[0], int(np.ceil(img.shape[1] / patch_size) * patch_size),
+               int(np.ceil(img.shape[2] / patch_size) * patch_size),)
+    paded = torch.zeros(size_im)
+    paded[:, : img.shape[1], : img.shape[2]] = img
+    imgs = paded[None, :, :, :]
+    with torch.no_grad():
+        mean_act = - loss_function(imgs)
+        mean_act_arr.append(mean_act.cpu().numpy())
+np.save(f'{fld}/{model_name}_{rois_str}_mean_acts.npy', mean_act_arr)
+
+idxs = np.argsort(mean_act_arr)
+fig, axes = plt.subplots(2, 5, figsize=(10, 5))
+for i in range(5):
+    for j in range(2):
+        seed = [seed_list[idxs[-(i + 1)]], seed_list[idxs[i]]][j]
+        image_path = f'{fld}/{model_name}/{rois_str}_seed{seed}.png'
+        image = Image.open(image_path)
+        axes[j, i].imshow(image)
+        axes[j, i].axis('off')
+fig.savefig(f'{fld}/{model_name}_{rois_str}_top_bottom_5.png', bbox_inches='tight')

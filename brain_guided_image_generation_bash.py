@@ -34,10 +34,10 @@ if __name__ == '__main__':
     for rois_list in [
                         # ['OFA', 'FFA-1', 'FFA-2'],
                         ['OPA', 'PPA', 'RSC'],
-                        ['EBA', 'FBA-1', 'FBA-2'],
-                        ['OWFA', 'VWFA-1', 'VWFA-2'],
+                        # ['EBA', 'FBA-1', 'FBA-2'],
+                        # ['OWFA', 'VWFA-1', 'VWFA-2'],
                       ]:
         rois_str = '_'.join(rois_list)
-        for detach_k in [0, 1]:
-            for subj in [1, 2]:
+        for detach_k in [1]: #[0, 1]:
+            for subj in [2]:
                 run_main(rois_str, detach_k, subj, num_cpu=3, num_gpu=1, priority=True, cluster=True)
