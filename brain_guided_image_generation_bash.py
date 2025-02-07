@@ -1,8 +1,9 @@
 import os
 
 
-def run_main(rois_str, detach_k, subj, num_cpu=1, num_gpu=0, priority=True, cluster=True):
-    config_file = rois_str.replace('-', '_') + f'_detachk{detach_k}_subj{subj}'
+def run_main(rois_str, detach_k, subj, clip_guidance_scale=130,
+             num_cpu=1, num_gpu=0, priority=True, cluster=True):
+    config_file = rois_str.replace('-', '_') + f'_detachk{detach_k}_subj{subj}_clips{clip_guidance_scale}'
     if cluster:
         with open(config_file + '.sh', 'w') as f:
             f.write('#!/bin/bash\n'
@@ -15,7 +16,8 @@ def run_main(rois_str, detach_k, subj, num_cpu=1, num_gpu=0, priority=True, clus
                     #+ f'#SBATCH --account=nklab\n'
                     + '\n'
                     + '\n'
-                    + f'python3 brain_guided_image_generation.py --rois_str={rois_str} --detach_k={detach_k} --subj={subj}'
+                    + f'python3 brain_guided_image_generation.py --rois_str={rois_str} '
+                      f'--detach_k={detach_k} --subj={subj} --clip_guidance_scale={clip_guidance_scale}'
                     + '\n'
                     + 'exit 0;\n')
         if priority:
@@ -25,19 +27,21 @@ def run_main(rois_str, detach_k, subj, num_cpu=1, num_gpu=0, priority=True, clus
         os.system(test_cmd)
     else:
         # nohup mycommand > mycommand.out 2>&1 &
-        test_cmd = f'python3 brain_guided_image_generation.py --rois_str={rois_str} --detach_k={detach_k} --subj={subj}'
+        test_cmd = f'python3 brain_guided_image_generation.py --rois_str={rois_str} '\
+                   f'--detach_k={detach_k} --subj={subj} --clip_guidance_scale={clip_guidance_scale}'
         os.system(test_cmd)
     return
 
 
 if __name__ == '__main__':
     for rois_list in [
-                        # ['OFA', 'FFA-1', 'FFA-2'],
+                        ['OFA', 'FFA-1', 'FFA-2'],
                         ['OPA', 'PPA', 'RSC'],
-                        # ['EBA', 'FBA-1', 'FBA-2'],
-                        # ['OWFA', 'VWFA-1', 'VWFA-2'],
+                        ['EBA', 'FBA-1', 'FBA-2'],
+                        ['OWFA', 'VWFA-1', 'VWFA-2'],
                       ]:
         rois_str = '_'.join(rois_list)
-        for detach_k in [1]: #[0, 1]:
-            for subj in [2]:
-                run_main(rois_str, detach_k, subj, num_cpu=3, num_gpu=1, priority=True, cluster=True)
+        for detach_k in [0]:
+            for subj in [1]:
+                run_main(rois_str, detach_k, subj, clip_guidance_scale=260,
+                         num_cpu=3, num_gpu=1, priority=True, cluster=True)

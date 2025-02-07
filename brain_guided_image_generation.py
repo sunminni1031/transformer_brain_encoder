@@ -18,12 +18,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--rois_str', help='rois_str', type=str, default='OFA')
 parser.add_argument('--detach_k', help='detach_k', type=int, default=0)
 parser.add_argument('--subj', help='subj', type=int, default=1)
+parser.add_argument('--clip_guidance_scale', help='clip_guidance_scale', type=float, default=130)
 args = parser.parse_args()
 rois_str = args.rois_str
 rois_list = rois_str.split('_')
 detach_k = bool(args.detach_k)
 subj = args.subj
+clip_guidance_scale = args.clip_guidance_scale
 print(rois_str, rois_list, f'detach_k={detach_k}', f'subj={subj}', flush=True)
+print(f'clip_guidance_scale={clip_guidance_scale}', flush=True)
 ##################################
 enc_output_layer = [1, 3, 5, 7]
 runs = np.arange(1, 6)
@@ -65,9 +68,12 @@ def loss_function(image_input):
 
 fld = '/engram/nklab/ms5724/transformer_brain_encoder/images'
 os.makedirs(fld, exist_ok=True)
+##################################
+
+if clip_guidance_scale != 130:
+    model_name += '_clipS' + str(clip_guidance_scale)
 os.makedirs(f'{fld}/{model_name}', exist_ok=True)
 
-##################################
 repo_id = "stabilityai/stable-diffusion-2-1-base"
 pipe = mypipelineSAG.from_pretrained(repo_id, torch_dtype=torch.float16, revision="fp16")
 pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
@@ -81,7 +87,8 @@ for seed in seed_list:
     torch.cuda.empty_cache()
     gc.collect()
     g = torch.Generator(device="cuda").manual_seed(int(seed))
-    image = pipe("", sag_scale=0.75, guidance_scale=0.0, num_inference_steps=50, generator=g, clip_guidance_scale=130.0)
+    image = pipe("", sag_scale=0.75, guidance_scale=0.0, num_inference_steps=50, generator=g,
+                 clip_guidance_scale=clip_guidance_scale)
     image.images[0].save(f'{fld}/{model_name}/{rois_str}_seed{seed}.png', format="PNG", compress_level=6)
 print(time.time() - time_st)
 
