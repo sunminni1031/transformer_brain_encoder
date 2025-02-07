@@ -71,7 +71,7 @@ os.makedirs(fld, exist_ok=True)
 ##################################
 
 if clip_guidance_scale != 130:
-    model_name += '_clipS' + str(clip_guidance_scale)
+    model_name += '_clipS' + str(int(clip_guidance_scale))
 os.makedirs(f'{fld}/{model_name}', exist_ok=True)
 
 repo_id = "stabilityai/stable-diffusion-2-1-base"
