@@ -106,9 +106,9 @@ for seed in seed_list:
     patch_size = 14
     size_im = (img.shape[0], int(np.ceil(img.shape[1] / patch_size) * patch_size),
                int(np.ceil(img.shape[2] / patch_size) * patch_size),)
-    paded = torch.zeros(size_im)
-    paded[:, : img.shape[1], : img.shape[2]] = img
-    imgs = paded[None, :, :, :]
+    padded = torch.zeros(size_im)
+    padded[:, : img.shape[1], : img.shape[2]] = img
+    imgs = padded[None, :, :, :]
     with torch.no_grad():
         mean_act = - loss_function(imgs)
         mean_act_arr.append(mean_act.cpu().numpy())

@@ -42,6 +42,6 @@ if __name__ == '__main__':
                       ]:
         rois_str = '_'.join(rois_list)
         for detach_k in [0]:
-            for subj in [1]:
-                run_main(rois_str, detach_k, subj, clip_guidance_scale=260,
+            for subj in [5, 7]:
+                run_main(rois_str, detach_k, subj,
                          num_cpu=3, num_gpu=1, priority=True, cluster=True)
